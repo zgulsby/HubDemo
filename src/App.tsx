@@ -15,9 +15,29 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+      setError('Request cancelled by user.');
+    }
+  };
 
   const handleGenerate = async () => {
     if (!prompt) return;
+
+    // Check environment variables
+    if (!process.env.REACT_APP_RUNPOD_API_KEY || !process.env.REACT_APP_RUNPOD_ENDPOINT_ID) {
+      setError('Missing environment variables. Please check your .env file.');
+      return;
+    }
+
+    // Create new abort controller for this request
+    const controller = new AbortController();
+    setAbortController(controller);
 
     setLoading(true);
     setError(null);
@@ -25,8 +45,12 @@ function App() {
 
     try {
       // Step 1: Submit the job
+      const submitUrl = `https://api.runpod.ai/v2/${process.env.REACT_APP_RUNPOD_ENDPOINT_ID}/run`;
+      console.log('Submitting job to URL:', submitUrl);
+      console.log('Using API Key:', process.env.REACT_APP_RUNPOD_API_KEY?.substring(0, 10) + '...');
+      
       const submitResponse = await axios.post(
-        `https://api.runpod.ai/v2/${process.env.REACT_APP_RUNPOD_ENDPOINT_ID}/run`,
+        submitUrl,
         {
           input: {
             prompt: prompt,
@@ -40,7 +64,8 @@ function App() {
         {
           headers: {
             'Authorization': `Bearer ${process.env.REACT_APP_RUNPOD_API_KEY}`,
-          }
+          },
+          signal: controller.signal
         }
       );
 
@@ -48,8 +73,11 @@ function App() {
       if (!jobId) {
         setError('Failed to submit job.');
         setLoading(false);
+        setAbortController(null);
         return;
       }
+
+      console.log('Job submitted successfully. Job ID:', jobId);
 
       // Step 2: Poll for status
       let status = submitResponse.data.status;
@@ -59,19 +87,30 @@ function App() {
         await new Promise(res => setTimeout(res, 2000)); // wait 2 seconds
         pollCount++;
         try {
+          console.log(`Polling attempt ${pollCount} for job ${jobId}`);
           const statusResponse = await axios.get(
             `https://api.runpod.ai/v2/${process.env.REACT_APP_RUNPOD_ENDPOINT_ID}/status/${jobId}`,
             {
               headers: {
                 'Authorization': `Bearer ${process.env.REACT_APP_RUNPOD_API_KEY}`,
-              }
+              },
+              signal: controller.signal
             }
           );
           status = statusResponse.data.status;
           output = statusResponse.data.output;
+          console.log(`Status: ${status}`);
         } catch (pollErr) {
-          setError('Error polling job status.');
+          // Check if it was cancelled
+          if (controller.signal.aborted) {
+            return; // Exit quietly if cancelled
+          }
+          console.error('Polling error:', pollErr);
+          const errorMessage = pollErr instanceof Error ? pollErr.message : 
+            (pollErr as any)?.response?.data?.error || 'Unknown polling error';
+          setError(`Error polling job status: ${errorMessage}`);
           setLoading(false);
+          setAbortController(null);
           return;
         }
       }
@@ -87,10 +126,23 @@ function App() {
         setError('Image generation timed out.');
       }
     } catch (err) {
-      setError('Error generating image. Please try again.');
-      console.error('Error:', err);
+      // Check if it was cancelled
+      if (controller.signal.aborted) {
+        return; // Exit quietly if cancelled
+      }
+      console.error('Generation error:', err);
+      const errorMessage = err instanceof Error ? err.message : 
+        (err as any)?.response?.data?.error || 'Unknown error';
+      
+      // Special handling for 404 errors
+      if ((err as any)?.response?.status === 404) {
+        setError(`Endpoint not found (404). Please verify your REACT_APP_RUNPOD_ENDPOINT_ID in the .env file. Check your RunPod dashboard for the correct endpoint ID.`);
+      } else {
+        setError(`Error generating image: ${errorMessage}`);
+      }
     } finally {
       setLoading(false);
+      setAbortController(null);
     }
   };
 
@@ -112,15 +164,27 @@ function App() {
             rows={3}
           />
           
-          <Button
-            variant="contained"
-            onClick={handleGenerate}
-            disabled={loading || !prompt}
-            fullWidth
-            sx={{ mt: 2 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Generate Image'}
-          </Button>
+          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleGenerate}
+              disabled={loading || !prompt}
+              fullWidth
+            >
+              {loading ? <CircularProgress size={24} /> : 'Generate Image'}
+            </Button>
+            
+            {loading && (
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleCancel}
+                sx={{ minWidth: '120px' }}
+              >
+                Cancel
+              </Button>
+            )}
+          </Box>
         </Paper>
 
         {error && (
