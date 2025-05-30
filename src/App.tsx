@@ -10,13 +10,6 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 
-interface GenerationResponse {
-  status: string;
-  output: {
-    images: string[];
-  };
-}
-
 function App() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +26,7 @@ function App() {
     try {
       // Step 1: Submit the job
       const submitResponse = await axios.post(
-        'https://api.runpod.ai/v2/go0d3c8wghbyy9/run',
+        `https://api.runpod.ai/v2/${process.env.REACT_APP_RUNPOD_ENDPOINT_ID}/run`,
         {
           input: {
             prompt: prompt,
@@ -67,7 +60,7 @@ function App() {
         pollCount++;
         try {
           const statusResponse = await axios.get(
-            `https://api.runpod.ai/v2/go0d3c8wghbyy9/status/${jobId}`,
+            `https://api.runpod.ai/v2/${process.env.REACT_APP_RUNPOD_ENDPOINT_ID}/status/${jobId}`,
             {
               headers: {
                 'Authorization': `Bearer ${process.env.REACT_APP_RUNPOD_API_KEY}`,

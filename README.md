@@ -27,9 +27,24 @@ npm install
 cp .env.example .env
 ```
 
-4. Add your RunPod API key to the `.env` file:
+4. Configure your RunPod credentials in the `.env` file:
+
+### Getting Your RunPod API Key:
+- Go to [RunPod](https://runpod.io)
+- Sign in to your account
+- Navigate to Settings → API Keys
+- Create a new API key or copy an existing one
+
+### Getting Your RunPod Endpoint ID:
+- In your RunPod dashboard, go to "Serverless" → "Endpoints"
+- Find your Automatic1111 endpoint
+- The Endpoint ID is the string in your endpoint URL after `/v2/` and before `/run`
+- Example: if your endpoint URL is `https://api.runpod.ai/v2/abc123def456/run`, then your Endpoint ID is `abc123def456`
+
+Update your `.env` file:
 ```
-REACT_APP_RUNPOD_API_KEY=your_actual_runpod_api_key
+REACT_APP_RUNPOD_API_KEY=your_actual_api_key_here
+REACT_APP_RUNPOD_ENDPOINT_ID=your_actual_endpoint_id_here
 ```
 
 5. Start the development server:
@@ -47,4 +62,10 @@ The app will be available at `http://localhost:3000`
 
 ## Environment Variables
 
-- `REACT_APP_RUNPOD_API_KEY` - Your RunPod API key for Automatic1111 endpoint 
+- `REACT_APP_RUNPOD_API_KEY` - Your RunPod API key
+- `REACT_APP_RUNPOD_ENDPOINT_ID` - Your RunPod Automatic1111 endpoint ID
+
+## Requirements
+
+- RunPod account with an active Automatic1111 serverless endpoint
+- Node.js 14+ and npm 
